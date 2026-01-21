@@ -1,3 +1,55 @@
+// #include <Arduino.h>
+
+// char data = 0;    
+// bool status = false;        //Variable for storing received data
+// void  setup()
+// {
+//     Serial.begin(115200);   //Sets the baud for serial data transmission
+//     delay(1000);          //Wait for serial connection to establish
+    
+//     // Test if ESP is connected
+//     Serial.println("ESP32 Connected and Ready!");
+//     Serial.println("Waiting for commands...");
+//     Serial.println("Send '1' to turn LED ON, '0' to turn LED OFF");
+    
+//     pinMode(2, OUTPUT);  //Sets digital pin  13 as output pin
+    
+//     // Blink LED to indicate successful connection
+//     for(int i = 0; i < 3; i++) {
+//         digitalWrite(2, HIGH);
+//         delay(200);
+//         digitalWrite(2, LOW);
+//         delay(200);
+//     }
+// }
+// void loop() {
+//     if(Serial.available() > 0) {
+//         data = Serial.read();
+//         if(data == '1')
+//             digitalWrite(2, HIGH);
+//         else if(data == '0')
+//             digitalWrite(2, LOW);
+//     }
+// }
+
+
+
+
+// //    if(Serial.available() > 0)      //  Send data only when you receive data:
+// //    
+// //       data = Serial.read();        //Read  the incoming data & store into data
+// //       Serial.print(data);          //Print  Value inside data in Serial monitor
+// //       Serial.print("\
+// // ");        
+//       // if(status == true)              // Checks whether value of data is equal to 1
+//       //    digitalWrite(2, HIGH);   //If value is 1 then LED turns ON
+//       // else  if(status == false)         //  Checks whether value of data is equal to 0
+//       //    digitalWrite(2,  LOW);    //If value is 0 then LED turns OFF
+   
+
+
+
+
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -32,9 +84,25 @@ void setup() {
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   Serial.println("Characteristic defined! Now you can read it in your phone!");
+
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(2000);
+  delay(5);
+// Testing multi-data print (see results in platformio monitor)
+    float x_value[50];
+    x_value[0] = 0.0;
+
+    for (int i = 1; i < 50; i++) {
+    x_value[i] = x_value[i-1] +0.1;}
+
+    for (int i = 0; i < 50; i++){
+        float y_1 = 5 * sin(2 * PI * x_value[i]);
+        float y_2 = 3 * sin(2 * PI * x_value[i] - 4.0);
+        float y_3 = sin(2 * PI * x_value[i] - 8.0);
+        float y_4 = 0.5 * sin(2 * PI * x_value[i] - 12.0);
+
+        printf("EMG: %.2f, y1: %.2f, y2: %.2f, y3: %.2f, y4: %.2f\n", x_value[i], y_1, y_2, y_3, y_4);
+    };
 }
