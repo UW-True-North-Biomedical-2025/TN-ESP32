@@ -54,6 +54,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include "emg_data.h"
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
