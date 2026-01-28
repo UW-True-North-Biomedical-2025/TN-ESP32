@@ -54,7 +54,6 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
-#include "emg_data.h"
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -86,24 +85,29 @@ void setup() {
   BLEDevice::startAdvertising();
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 
+  
+
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(5);
+
+  float counter = 0.0;
 // Testing multi-data print (see results in platformio monitor)
-    float x_value[50];
-    x_value[0] = 0.0;
 
-    for (int i = 1; i < 50; i++) {
-    x_value[i] = x_value[i-1] +0.1;}
+    // float x_value[counter];
+    // x_value[0] = 0.0;
 
-    for (int i = 0; i < 50; i++){
-        float y_1 = 5 * sin(2 * PI * x_value[i]);
-        float y_2 = 3 * sin(2 * PI * x_value[i] - 4.0);
-        float y_3 = sin(2 * PI * x_value[i] - 8.0);
-        float y_4 = 0.5 * sin(2 * PI * x_value[i] - 12.0);
+    // for ( = 1; i < 50; i++) {
+    // / x_value[i] = x_value[i-1] +0.1;}
+    while (true){
+       delay(500);
+        float y_1 = 5 * sin(2 * PI * counter);
+        float y_2 = 3 * sin(2 * PI * counter - 4.0);
+        float y_3 = sin(2 * PI * counter - 8.0);
+        float y_4 = 0.5 * sin(2 * PI * counter - 12.0);
 
-        printf("EMG: %.2f, y1: %.2f, y2: %.2f, y3: %.2f, y4: %.2f\n", x_value[i], y_1, y_2, y_3, y_4);
-    };
+        printf("EMG: %.2f, y1: %.2f, y2: %.2f, y3: %.2f, y4: %.2f\n", counter, y_1, y_2, y_3, y_4);
+        counter+=0.1;
+    }
 }
