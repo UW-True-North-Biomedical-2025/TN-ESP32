@@ -54,6 +54,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include "I2C_ESP32.h"
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -64,6 +65,7 @@
 void setup() {
   Serial.begin(115200);
   Serial.println("Starting BLE work!");
+  i2c_init(0x08);  // Initialize I2C with address 0x08
 
   BLEDevice::init("MyESP32");  // set the device name
   BLEServer *pServer = BLEDevice::createServer();
@@ -110,4 +112,10 @@ void loop() {
         printf("EMG: %.2f, y1: %.2f, y2: %.2f, y3: %.2f, y4: %.2f\n", counter, y_1, y_2, y_3, y_4);
         counter+=0.1;
     }
+
+  if (i2c_has_new_data()) { // Check if new I2C data has been received
+      Serial.print("Received value: "); 
+      Serial.println(i2c_get_last_value());
+  }
+  delay(10); 
 }
