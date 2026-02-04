@@ -67,25 +67,25 @@ void setup() {
   Serial.println("Starting BLE work!");
   i2c_init(0x08);  // Initialize I2C with address 0x08
 
-  BLEDevice::init("MyESP32");  // set the device name
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-                                         CHARACTERISTIC_UUID,
-                                         BLECharacteristic::PROPERTY_READ |
-                                         BLECharacteristic::PROPERTY_WRITE
-                                       );
+  // BLEDevice::init("MyESP32");  // set the device name
+  // BLEServer *pServer = BLEDevice::createServer();
+  // BLEService *pService = pServer->createService(SERVICE_UUID);
+  // BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+  //                                        CHARACTERISTIC_UUID,
+  //                                        BLECharacteristic::PROPERTY_READ |
+  //                                        BLECharacteristic::PROPERTY_WRITE
+  //                                      );
 
-  pCharacteristic->setValue("Hello World!");
-  pService->start();
-  // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
-  pAdvertising->setMinPreferred(0x12);
-  BLEDevice::startAdvertising();
-  Serial.println("Characteristic defined! Now you can read it in your phone!");
+  // pCharacteristic->setValue("Hello World!");
+  // pService->start();
+  // // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
+  // BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  // pAdvertising->addServiceUUID(SERVICE_UUID);
+  // pAdvertising->setScanResponse(true);
+  // pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+  // pAdvertising->setMinPreferred(0x12);
+  // BLEDevice::startAdvertising();
+  // Serial.println("Characteristic defined! Now you can read it in your phone!");
 
   
 
@@ -94,24 +94,24 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  float counter = 0.0;
-// Testing multi-data print (see results in platformio monitor)
+//   float counter = 0.0;
+// // Testing multi-data print (see results in platformio monitor)
 
-    // float x_value[counter];
-    // x_value[0] = 0.0;
+//     // float x_value[counter];
+//     // x_value[0] = 0.0;
 
-    // for ( = 1; i < 50; i++) {
-    // / x_value[i] = x_value[i-1] +0.1;}
-    while (true){
-       delay(500);
-        float y_1 = 5 * sin(2 * PI * counter);
-        float y_2 = 3 * sin(2 * PI * counter - 4.0);
-        float y_3 = sin(2 * PI * counter - 8.0);
-        float y_4 = 0.5 * sin(2 * PI * counter - 12.0);
+//     // for ( = 1; i < 50; i++) {
+//     // / x_value[i] = x_value[i-1] +0.1;}
+//     while (true){
+//        delay(500);
+//         float y_1 = 5 * sin(2 * PI * counter);
+//         float y_2 = 3 * sin(2 * PI * counter - 4.0);
+//         float y_3 = sin(2 * PI * counter - 8.0);
+//         float y_4 = 0.5 * sin(2 * PI * counter - 12.0);
 
-        printf("EMG: %.2f, y1: %.2f, y2: %.2f, y3: %.2f, y4: %.2f\n", counter, y_1, y_2, y_3, y_4);
-        counter+=0.1;
-    }
+//         printf("EMG: %.2f, y1: %.2f, y2: %.2f, y3: %.2f, y4: %.2f\n", counter, y_1, y_2, y_3, y_4);
+//         counter+=0.1;
+//     }
 
   if (i2c_has_new_data()) { // Check if new I2C data has been received
       Serial.print("Received value: "); 
