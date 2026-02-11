@@ -1,15 +1,23 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
-import serial
-import time
+import asyncio
+import struct
 from collections import deque
+from bleak import BleakClient, BleakScanner
 
-# Configure serial connection to ESP32
-ser = serial.Serial('/dev/cu.usbserial-120', 115200, timeout=1)
-time.sleep(2)
+# Configure BLE connection to ESP32
+DEVICE_NAME = "ESP32S3-EMG"  # Change to match your ESP32's BLE name
+SERVICE_UUID = "c8c4a1d0-9f8a-4d4d-8d79-bd3e9e4c11b0"
+EMG_RAW_CHAR_UUID = "6e2c1a30-4f27-4ad0-8c40-7aa3e1f8f5b4"
+EMG_ENVELOPE_UUID = "c1f5bbda-f9cc-4a3e-a4c8-9f6247b70c4e"
+
+# BLE client
+ble_client = None
+sample_count = 0
 
 # Data buffers - store last 100 data points
+#creates sliding of the plot by only keeping last 100 points of data
 max_points = 100
 x_data = deque(maxlen=max_points)
 y1_data = deque(maxlen=max_points)
@@ -18,18 +26,65 @@ y3_data = deque(maxlen=max_points)
 y4_data = deque(maxlen=max_points)
 
 
-def read_emg_data():
-    if ser.in_waiting > 0:
-        line = ser.readline().decode('utf-8').strip()
-        if line.startswith("EMG:"):
-            parts = line.split(',')
-            x = float(parts[0].split(':')[1].strip()) 
-            y1 = float(parts[1].split(':')[1].strip())
-            y2 = float(parts[2].split(':')[1].strip())
-            y3 = float(parts[3].split(':')[1].strip())
-            y4 = float(parts[4].split(':')[1].strip())
-            return x, y1, y2, y3, y4
-    return None 
+def notification_handler_emg1(sender, data):
+    global sample_count
+    value = struct.unpack('<H', data)[0]
+    x_data.append(sample_count)
+    y1_data.append(value)
+    sample_count += 1
+
+def notification_handler_emg2(sender, data):
+
+    value = struct.unpack('<H', data)[0]
+    y2_data.append(value)
+
+def notification_handler_emg3(sender, data):
+    value = struct.unpack('<H', data)[0]
+    y3_data.append(value)
+
+def notification_handler_emg4(sender, data):
+    value = struct.unpack('<H', data)[0]
+    y4_data.append(value)
+
+async def find_device():
+    print(f"Scanning for '{DEVICE_NAME}'...")
+    devices = await BleakScanner.discover(timeout=5.0)
+    for device in devices:
+        if device.name == DEVICE_NAME:
+            print(f"Found: {device.name} at {device.address}")
+            return device.address
+    return None
+
+async def connect_ble():
+    global ble_client
+    
+    address = await find_device()
+    if not address:
+        print(f"Device '{DEVICE_NAME}' not found!")
+        return False
+    
+    try:
+        ble_client = BleakClient(address)
+        await ble_client.connect()
+        print(f"Connected to {DEVICE_NAME}")
+        
+        # Subscribe to BLE notifications
+        await ble_client.start_notify(EMG_RAW_CHAR_UUID, notification_handler_emg1)
+        await ble_client.start_notify(EMG_ENVELOPE_UUID, notification_handler_emg2)
+        # Add more characteristics if you have EMG3/EMG4
+        
+        print("Receiving data via BLE...")
+        return True
+    except Exception as e:
+        print(f"Connection failed: {e}")
+        return False
+
+async def disconnect_ble():
+    """Disconnect from BLE device"""
+    global ble_client
+    if ble_client and ble_client.is_connected:
+        await ble_client.disconnect()
+        print("Disconnected from BLE device") 
 
 # Set up the figure and axis
 fig, ax = plt.subplots(figsize=(10, 6))
@@ -51,15 +106,7 @@ def init():
 
 
 def update(frame):
-    data = read_emg_data()
-    if data:
-        x, y1, y2, y3, y4 = data
-        x_data.append(x)
-        y1_data.append(y1)
-        y2_data.append(y2)
-        y3_data.append(y3)
-        y4_data.append(y4)
-    
+    # Data comes via BLE notifications, just update the plot
     # Update lines with buffered data
     if len(x_data) > 0:
         line1.set_data(list(x_data), list(y1_data))
@@ -78,11 +125,29 @@ def update(frame):
 
     return line1, line2, line3, line4
 
-# Start the animation
-ani = animation.FuncAnimation(
-    fig, update, init_func=init, 
-    interval=50, blit=True, cache_frame_data=False
-)
+async def main():
+    """Main async function"""
+    # Connect to BLE device
+    if not await connect_ble():
+        return
+    
+    # Start the animation
+    ani = animation.FuncAnimation(
+        fig, update, init_func=init, 
+        interval=50, blit=True, cache_frame_data=False
+    )
 
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    
+    try:
+        plt.show()
+    except KeyboardInterrupt:
+        print("\nStopping...")
+    finally:
+        await disconnect_ble()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nExiting...")
