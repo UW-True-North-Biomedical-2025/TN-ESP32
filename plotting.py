@@ -3,18 +3,23 @@ import matplotlib.animation as animation
 import numpy as np
 import asyncio
 import struct
+import threading
 from collections import deque
 from bleak import BleakClient, BleakScanner
 
 # Configure BLE connection to ESP32
-DEVICE_NAME = "ESP32S3-EMG"  # Change to match your ESP32's BLE name
-SERVICE_UUID = "c8c4a1d0-9f8a-4d4d-8d79-bd3e9e4c11b0"
-EMG_RAW_CHAR_UUID = "6e2c1a30-4f27-4ad0-8c40-7aa3e1f8f5b4"
-EMG_ENVELOPE_UUID = "c1f5bbda-f9cc-4a3e-a4c8-9f6247b70c4e"
+DEVICE_NAME = "MyESP32"  # Change to match your ESP32's BLE name
+SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+EMG1_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+EMG2_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a9"
+EMG3_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26aa"
+EMG4_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26ab"
 
 # BLE client
 ble_client = None
 sample_count = 0
+connection_success = False
+connection_error = None
 
 # Data buffers - store last 100 data points
 #creates sliding of the plot by only keeping last 100 points of data
@@ -49,9 +54,15 @@ def notification_handler_emg4(sender, data):
 async def find_device():
     print(f"Scanning for '{DEVICE_NAME}'...")
     devices = await BleakScanner.discover(timeout=5.0)
+    
+    print(f"\nFound {len(devices)} BLE devices:")
+    for device in devices:
+        print(f"  - {device.name or 'Unknown'} ({device.address})")
+    print()
+    
     for device in devices:
         if device.name == DEVICE_NAME:
-            print(f"Found: {device.name} at {device.address}")
+            print(f"✓ Target device found: {device.name} at {device.address}")
             return device.address
     return None
 
@@ -64,19 +75,39 @@ async def connect_ble():
         return False
     
     try:
-        ble_client = BleakClient(address)
+        ble_client = BleakClient(address, timeout=15.0)
+        print("Attempting connection...")
         await ble_client.connect()
-        print(f"Connected to {DEVICE_NAME}")
+        print(f"✓ Connected to {DEVICE_NAME}")
         
-        # Subscribe to BLE notifications
-        await ble_client.start_notify(EMG_RAW_CHAR_UUID, notification_handler_emg1)
-        await ble_client.start_notify(EMG_ENVELOPE_UUID, notification_handler_emg2)
-        # Add more characteristics if you have EMG3/EMG4
+        # Small delay to ensure connection is stable
+        await asyncio.sleep(1)
         
-        print("Receiving data via BLE...")
+        if not ble_client.is_connected:
+            print("Connection dropped after connect!")
+            return False
+        
+        print("Subscribing to characteristics...")
+        
+        # Subscribe to BLE notifications for all 4 EMG channels
+        await ble_client.start_notify(EMG1_CHAR_UUID, notification_handler_emg1)
+        print("  ✓ EMG1 subscribed")
+        
+        await ble_client.start_notify(EMG2_CHAR_UUID, notification_handler_emg2)
+        print("  ✓ EMG2 subscribed")
+        
+        await ble_client.start_notify(EMG3_CHAR_UUID, notification_handler_emg3)
+        print("  ✓ EMG3 subscribed")
+        
+        await ble_client.start_notify(EMG4_CHAR_UUID, notification_handler_emg4)
+        print("  ✓ EMG4 subscribed")
+        
+        print("✓ Receiving data via BLE...")
         return True
     except Exception as e:
         print(f"Connection failed: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 async def disconnect_ble():
@@ -125,11 +156,66 @@ def update(frame):
 
     return line1, line2, line3, line4
 
-async def main():
-    """Main async function"""
-    # Connect to BLE device
-    if not await connect_ble():
+def on_close(event):
+    """Handle window close event"""
+    print("\nClosing plot window...")
+    global ble_client
+    if ble_client and ble_client.is_connected:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(disconnect_ble())
+        loop.close()
+
+def run_ble_in_thread():
+    """Run BLE connection in background thread"""
+    global connection_success, connection_error
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def ble_task():
+        global connection_success, connection_error
+        try:
+            if await connect_ble():
+                connection_success = True
+                # Keep the connection alive
+                while ble_client and ble_client.is_connected:
+                    await asyncio.sleep(1)
+            else:
+                connection_error = "Connection failed"
+        except Exception as e:
+            connection_error = str(e)
+    
+    loop.run_until_complete(ble_task())
+    loop.close()
+
+def main():
+    """Main function"""
+    global connection_success, connection_error
+    
+    print("Connecting to BLE device...")
+    
+    # Start BLE in background thread
+    ble_thread = threading.Thread(target=run_ble_in_thread, daemon=True)
+    ble_thread.start()
+    
+    # Wait for connection (up to 10 seconds)
+    import time
+    for i in range(20):  # 20 x 0.5s = 10 seconds
+        if connection_success:
+            break
+        if connection_error:
+            print(f"Failed to connect: {connection_error}")
+            return
+        time.sleep(0.5)
+    
+    if not connection_success:
+        print("Failed to connect. Exiting.")
         return
+    
+    print("Starting plot...")
+    # Set up window close handler
+    fig.canvas.mpl_connect('close_event', on_close)
     
     # Start the animation
     ani = animation.FuncAnimation(
@@ -138,16 +224,14 @@ async def main():
     )
 
     plt.tight_layout()
-    
-    try:
-        plt.show()
-    except KeyboardInterrupt:
-        print("\nStopping...")
-    finally:
-        await disconnect_ble()
+    plt.show(block=True)
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        main()
     except KeyboardInterrupt:
         print("\nExiting...")
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
