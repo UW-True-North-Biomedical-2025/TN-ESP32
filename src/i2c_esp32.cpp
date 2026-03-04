@@ -23,7 +23,7 @@ static void receiveEvent(int bytes)
 {
     if (bytes >= 2)
     {
-        Wire.read(); // discard command byte
+        Wire.read();
         s_lastValue = Wire.read();
         s_newData = true;
     }
@@ -31,7 +31,7 @@ static void receiveEvent(int bytes)
 
 static void requestEvent()
 {
-    Wire.write(s_lastValue); // echo back
+    Wire.write(s_lastValue);
 }
 
 void i2c_init(uint8_t addr)
@@ -49,6 +49,6 @@ bool i2c_has_new_data()
 
 uint8_t i2c_get_last_value()
 {
-    s_newData = false; // reset new data flag
+    s_newData = false;
     return s_lastValue;
 }
