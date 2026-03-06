@@ -86,11 +86,22 @@ void setup()
 
 void loop()
 {
-  // Check for new I2C data and print it (currently just a counter)
+  // Check for new I2C data (float array, e.g. EMG from Teensy) and print it
   if (i2c_has_new_data())
   {
-    Serial.print("Received value: ");
-    Serial.println(i2c_get_last_value());
+    // Serial.print("Received value: "); // for testing I2C communication
+    // Serial.println(i2c_get_last_value()); // for testing I2C communication
+    float buf[I2C_MAX_FLOATS];
+    uint8_t n = i2c_get_float_array(buf);
+    Serial.print("Received ");
+    Serial.print(n);
+    Serial.print(" floats: [");
+    for (uint8_t i = 0; i < n; i++)
+    {
+      if (i) Serial.print(", ");
+      Serial.print(buf[i], 4);
+    }
+    Serial.println("]");
   }
   delay(10);
 
