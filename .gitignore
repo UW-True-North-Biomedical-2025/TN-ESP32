@@ -6,3 +6,4 @@
 .arduino
 .CH341SER_MAC
 .TN-ESP32.code-workspace
+.DS_Store
