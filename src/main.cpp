@@ -2,197 +2,127 @@
 /**
  * @file main.cpp
  * @author  ()
- * @brief
+ * @brief Main application entry point for the ESP32 I2C-to-BLE bridge
  *
  * @version 0.1
- * @date 2026-03-12
+ * @date 2026-03-13
  *
  * @copyright Copyright (c) 2026
  *
  */
 /**************************************************************************************************/
 
-/*------------------------------------------------------------------------------------------------*/
-/* HEADERS                                                                                        */
-/*------------------------------------------------------------------------------------------------*/
-
 #include <Arduino.h>
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
-#include <BLE2902.h>
+#include "ble.h"
+#include "i2c.h"
 
-/*------------------------------------------------------------------------------------------------*/
-/* MACROS                                                                                         */
-/*------------------------------------------------------------------------------------------------*/
+namespace
+{
+    constexpr uint32_t k_serial_baud_rate = 115200U;
+    constexpr uint32_t k_status_print_period_ms = 1000U;
 
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define EMG1_CHAR_UUID      "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-// #define EMG2_CHAR_UUID      "beb5483e-36e1-4688-b7f5-ea07361b26a9"
-// #define EMG3_CHAR_UUID      "beb5483e-36e1-4688-b7f5-ea07361b26aa"
-// #define EMG4_CHAR_UUID      "beb5483e-36e1-4688-b7f5-ea07361b26ab"
-
-/*------------------------------------------------------------------------------------------------*/
-/* GLOBAL VARIABLES                                                                               */
-/*------------------------------------------------------------------------------------------------*/
-
-BLECharacteristic *pCharEmg1;
-BLECharacteristic *pCharEmg2;
-BLECharacteristic *pCharEmg3;
-BLECharacteristic *pCharEmg4;
-
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
-
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      Serial.println("Client connected!");
-    };
-
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-      Serial.println("Client disconnected!");
-    }
-};
-
-/*------------------------------------------------------------------------------------------------*/
-/* FUNCTION PROTOTYPES                                                                            */
-/*------------------------------------------------------------------------------------------------*/
-
-
-
-/*------------------------------------------------------------------------------------------------*/
-/* FUNCTION DEFINITIONS                                                                           */
-/*------------------------------------------------------------------------------------------------*/
-
-
-void setup() {
-    Serial.begin(115200);
-    Serial.println("Starting BLE EMG Streaming!");
-
-    i2c_init(0x08);
-
-    BLEDevice::init("MyESP32");
-    BLEServer *pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new MyServerCallbacks());
-
-    BLEService *pService = pServer->createService(SERVICE_UUID);
-
-    // Create 4 characteristics with NOTIFY property
-    pCharEmg1 = pService->createCharacteristic(
-        EMG1_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
-    );
-    pCharEmg1->addDescriptor(new BLE2902());
-
-    //   pCharEmg2 = pService->createCharacteristic(
-    //     EMG2_CHAR_UUID,
-    //     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
-    //   );
-    //   pCharEmg2->addDescriptor(new BLE2902());
-
-    //   pCharEmg3 = pService->createCharacteristic(
-    //     EMG3_CHAR_UUID,
-    //     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
-    //   );
-    //   pCharEmg3->addDescriptor(new BLE2902());
-
-    //   pCharEmg4 = pService->createCharacteristic(
-    //     EMG4_CHAR_UUID,
-    //     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
-    //   );
-    //   pCharEmg4->addDescriptor(new BLE2902());
-
-    pService->start();
-
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);
-    pAdvertising->setMinPreferred(0x12);
-    BLEDevice::startAdvertising();
-
-    Serial.println("BLE ready! Waiting for connection...");
-    }
-
-    void loop() {
-
-    if (i2c_has_new_data())
+    void print_i2c_packet_summary(const float *values, uint8_t count)
     {
-        // Serial.print("Received value: "); // for testing I2C communication
-        // Serial.println(i2c_get_last_value()); // for testing I2C communication
-        float buf[I2C_MAX_FLOATS];
-        uint8_t n = i2c_get_float_array(buf);
-        Serial.print("Received ");
-        Serial.print(n);
-        Serial.print(" floats: [");
-        for (uint8_t i = 0; i < n; i++)
+        Serial.print("I2C packet [");
+        Serial.print(count);
+        Serial.print("]: ");
+
+        for (uint8_t index = 0; index < count; ++index)
         {
-        if (i) Serial.print(", ");
-        Serial.print(buf[i], 4);
-        }
-        Serial.println("]");
-    }
+            if (index != 0U)
+            {
+                Serial.print(", ");
+            }
 
-    // Handle reconnection
-    if (!deviceConnected && oldDeviceConnected) {
-        delay(500); // Give time for BLE stack to get ready
-        BLEDevice::startAdvertising();
-        Serial.println("Start advertising for reconnection...");
-        oldDeviceConnected = deviceConnected;
-    }
-
-    // Handle new connection
-    if (deviceConnected && !oldDeviceConnected) {
-        oldDeviceConnected = deviceConnected;
-        Serial.println("Ready to stream data!");
-    }
-
-    // Only send data when connected
-    if (deviceConnected) {
-        static float counter = 0.0;
-
-        // Generate 4 sine wave signals (simulating EMG data)
-        float y_1 = 2048 + 500 * sin(2 * PI * counter);
-        float y_2 = 2048 + 400 * sin(2 * PI * counter - 1.0);
-        float y_3 = 2048 + 300 * sin(2 * PI * counter - 2.0);
-        float y_4 = 2048 + 200 * sin(2 * PI * counter - 3.0);
-
-        // Convert to uint16_t (0-4095 range like 12-bit ADC)
-        uint16_t val1 = (uint16_t)y_1;
-        uint16_t val2 = (uint16_t)y_2;
-        uint16_t val3 = (uint16_t)y_3;
-        uint16_t val4 = (uint16_t)y_4;
-
-        // Pack as little-endian bytes
-        uint8_t data1[2] = {(uint8_t)(val1 & 0xFF), (uint8_t)((val1 >> 8) & 0xFF)};
-        uint8_t data2[2] = {(uint8_t)(val2 & 0xFF), (uint8_t)((val2 >> 8) & 0xFF)};
-        uint8_t data3[2] = {(uint8_t)(val3 & 0xFF), (uint8_t)((val3 >> 8) & 0xFF)};
-        uint8_t data4[2] = {(uint8_t)(val4 & 0xFF), (uint8_t)((val4 >> 8) & 0xFF)};
-
-        // Send via BLE
-        pCharEmg1->setValue(data1, 2);
-        pCharEmg1->notify();
-
-        // pCharEmg2->setValue(data2, 2);
-        // pCharEmg2->notify();
-
-        // pCharEmg3->setValue(data3, 2);
-        // pCharEmg3->notify();
-
-        // pCharEmg4->setValue(data4, 2);
-        // pCharEmg4->notify();
-
-        // Print to serial for debugging
-        if ((int)(counter * 100) % 100 == 0) { // Print every 1 second
-        Serial.printf("Streaming - EMG: %.2f, y1: %.0f, y2: %.0f, y3: %.0f, y4: %.0f\n",
-                        counter, y_1, y_2, y_3, y_4);
+            Serial.print(values[index], 4);
         }
 
-        counter += 0.01;
-        delay(50);  // 20Hz update rate
-    } else {
-        delay(100);  // Wait when not connected
+        Serial.println();
     }
+
+    void print_bridge_status(const telemetry_sample_t &sample)
+    {
+        Serial.print("Bridge mode=I2C");
+        Serial.print(" ble=");
+        Serial.print(ble_is_client_connected() ? "connected" : "idle");
+        Serial.print(" payload=");
+        Serial.print(sample.timestamp_ms);
+        Serial.print(",");
+        Serial.print(sample.emg_1, 3);
+        Serial.print(",");
+        Serial.print(sample.emg_2, 3);
+        Serial.print(",");
+        Serial.print(sample.imu_angle_deg, 2);
+        Serial.print(",");
+        Serial.print(sample.emg_fft_1_hz, 2);
+        Serial.print(",");
+        Serial.println(sample.emg_fft_2_hz, 2);
+    }
+
+    void print_no_i2c_status()
+    {
+        Serial.print("Bridge mode=IDLE ble=");
+        Serial.print(ble_is_client_connected() ? "connected" : "idle");
+        Serial.println(" no i2c data incoming.");
+    }
+}
+
+void setup()
+{
+    Serial.begin(k_serial_baud_rate);
+
+    const unsigned long serial_wait_start = millis();
+    while (!Serial && ((millis() - serial_wait_start) < 2000U))
+    {
+        delay(10);
+    }
+
+    Serial.println("Starting TN ESP32 I2C-to-BLE bridge.");
+
+    if (!i2c_init())
+    {
+        Serial.println("I2C initialization failed.");
+    }
+
+    if (!ble_init())
+    {
+        Serial.println("BLE initialization failed.");
+    }
+}
+
+void loop()
+{
+    static uint32_t last_status_print_ms = 0U;
+
+    const uint32_t now_ms = millis();
+
+    if (i2c_has_new_packet())
+    {
+        float raw_packet[k_i2c_max_floats] = {};
+        const uint8_t count = i2c_get_last_float_array(raw_packet);
+        print_i2c_packet_summary(raw_packet, count);
+    }
+
+    telemetry_sample_t sample = {};
+    const bool has_live_i2c = i2c_get_latest_sample(&sample, now_ms);
+
+    if (has_live_i2c)
+    {
+        ble_update(sample, now_ms);
+    }
+
+    if ((now_ms - last_status_print_ms) >= k_status_print_period_ms)
+    {
+        last_status_print_ms = now_ms;
+        if (has_live_i2c)
+        {
+            print_bridge_status(sample);
+        }
+        else
+        {
+            print_no_i2c_status();
+        }
+    }
+
+    delay(10);
 }
